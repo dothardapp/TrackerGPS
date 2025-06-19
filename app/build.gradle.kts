@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.ksp)
     id("kotlin-parcelize")
 }
 
@@ -69,4 +70,11 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     // Para collectAsStateWithLifecycle en Compose
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // --- DEPENDENCIAS DE ROOM ---
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    // El compilador de Room se aplica con 'ksp', no con 'implementation'
+    ksp(libs.androidx.room.compiler)
+
 }

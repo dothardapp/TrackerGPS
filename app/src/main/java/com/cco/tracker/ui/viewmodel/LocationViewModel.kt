@@ -19,11 +19,10 @@ val Context.dataStore by preferencesDataStore(name = "user_preferences")
 
 class LocationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocationRepository(application.applicationContext)
-    private val useCase = LocationUseCase(repository) // El UseCase también lo actualizaremos
+    private val useCase = LocationUseCase(repository)
     private val tag = "LocationViewModel"
 
-    // --- ESTADOS ACTUALIZADOS ---
-    private val _isReady = MutableStateFlow<Boolean>(false)
+    private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
     private val _userList = MutableStateFlow<List<TrackerUserResponse>>(emptyList())
@@ -37,14 +36,12 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            // Usamos el nuevo método del repositorio
             _currentUser.value = repository.getSavedUser()
             fetchUserList()
             _isReady.value = true
         }
     }
 
-    // --- NUEVO MÉTODO PARA GUARDAR EL USUARIO COMPLETO ---
     fun setSelectedUser(user: TrackerUserResponse) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveSelectedUser(user)
@@ -53,14 +50,10 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- MÉTODO ACTUALIZADO ---
-    // Ahora obtiene la lista de objetos TrackerUserResponse
     fun fetchUserList() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val users = repository.getUsers()
-                _userList.value = users
-                Log.d(tag, "Lista de usuarios actualizada desde el ViewModel: ${users.size} usuarios")
+                _userList.value = repository.getUsers()
             } catch (e: Exception) {
                 Log.e(tag, "Excepción en ViewModel al obtener la lista de usuarios: ${e.message}")
                 _userList.value = emptyList()
@@ -68,23 +61,24 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- MÉTODO ACTUALIZADO Y SIMPLIFICADO ---
-    // Ahora solo llama al caso de uso, que se encarga de todo.
+    // --- CAMBIO AQUÍ: La lógica ahora maneja un Boolean ---
     fun getAndSendLocation() {
         Log.d(tag, "Iniciando getAndSendLocation...")
         viewModelScope.launch(Dispatchers.IO) {
             _locationState.value = LocationState.Loading
             try {
-                // El UseCase hará todo el trabajo de obtener ID, coordenadas y enviar.
-                val response = useCase.getAndSendLocation()
-                _locationState.value = if (response.isSuccessful) {
+                // 'success' ahora es true o false.
+                val success = useCase.getAndSendLocation()
+                _locationState.value = if (success) {
                     Log.d(tag, "Ubicación enviada con éxito desde el ViewModel")
                     LocationState.Success
                 } else {
-                    Log.w(tag, "Error en la respuesta del UseCase: ${response.code()} - ${response.message()}")
-                    LocationState.Error("Error: ${response.code()} - ${response.message()}")
+                    // El error específico ya se logueó en el Repository
+                    Log.w(tag, "Fallo en el envío gestionado por el UseCase.")
+                    LocationState.Error("No se pudo enviar la ubicación.")
                 }
             } catch (e: Exception) {
+                // Capturamos las excepciones que lanza el UseCase (ej. si no hay usuario o GPS)
                 Log.e(tag, "Excepción capturada por el ViewModel: ${e.message}")
                 _locationState.value = LocationState.Error("Error: ${e.message}")
             }

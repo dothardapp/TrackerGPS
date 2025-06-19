@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">TrackerGPS</string>
+    <string name="active_user">Usuario activo: %1$s</string>
+    <string name="search_user">Buscar usuario…</string>
+    <string name="save_config">Guardar Configuración</string>
 </resources>
