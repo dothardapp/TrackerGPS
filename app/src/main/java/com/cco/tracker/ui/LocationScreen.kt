@@ -7,7 +7,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,7 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cco.tracker.ui.viewmodel.LocationState
 import com.cco.tracker.ui.viewmodel.LocationViewModel
 import com.cco.tracker.util.PermissionsUtil
@@ -23,15 +24,17 @@ import com.cco.tracker.util.PermissionsUtil
 @Composable
 fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) {
 
-    val state: LocationState by viewModel.locationState.collectAsState()
+    val state: LocationState by viewModel.locationState.collectAsStateWithLifecycle()
+    // --- CAMBIO 1: Observamos el objeto de usuario completo ---
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
     var hasPermissions by remember { mutableStateOf(PermissionsUtil.hasLocationPermissions(context)) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
+    ) {
         hasPermissions = PermissionsUtil.hasLocationPermissions(context)
-
         if (hasPermissions) {
             viewModel.getAndSendLocation()
         } else {
@@ -46,6 +49,14 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Text(
+            // --- CAMBIO 2: Mostramos la propiedad 'name' del objeto currentUser ---
+            text = "Usuario activo: ${currentUser?.name ?: "Cargando..."}",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+
         Button(
             onClick = {
                 if (hasPermissions) {
@@ -67,7 +78,7 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
             LocationState.Idle -> Text("Presiona el botón para comenzar")
             LocationState.Loading -> CircularProgressIndicator()
             LocationState.Success -> Text("Ubicación enviada con éxito")
-            is LocationState.Error -> Text((state as LocationState.Error).message) // Acceso directo al mensaje si ya hiciste un 'is'
+            is LocationState.Error -> Text((state as LocationState.Error).message)
         }
     }
 }

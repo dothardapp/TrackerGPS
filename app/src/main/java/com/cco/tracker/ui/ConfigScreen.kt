@@ -1,30 +1,46 @@
 package com.cco.tracker.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
+import com.cco.tracker.data.model.TrackerUserResponse
 import com.cco.tracker.ui.viewmodel.LocationViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConfigScreen(viewModel: LocationViewModel, onSave: () -> Unit, modifier: Modifier = Modifier) {
+fun ConfigScreen(
+    viewModel: LocationViewModel,
+    navController: NavController,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // 1. Observamos el objeto de usuario completo guardado
+    val savedUser by viewModel.currentUser.collectAsStateWithLifecycle()
 
-    val savedUserName by viewModel.currentUserName.collectAsStateWithLifecycle(initialValue = "Julieta")
-    val trackerUsers by viewModel.userList.collectAsStateWithLifecycle()
-    var currentSelectedUserName by remember(savedUserName) { mutableStateOf(savedUserName ?: "Julieta") }
-    var expanded by remember { mutableStateOf(false) }
+    // 2. El estado local ahora es de tipo TrackerUserResponse?
+    var currentSelectedUser by remember(savedUser) { mutableStateOf(savedUser) }
 
+    // 3. Esperamos recibir un objeto TrackerUserResponse de la pantalla de búsqueda
+    val searchResult by navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<TrackerUserResponse?>("selected_user", null)
+        ?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
 
-    LaunchedEffect(savedUserName) {
-        if (savedUserName != null) { // Solo actualiza si hay un valor guardado
-            currentSelectedUserName = savedUserName.toString()
+    // Este LaunchedEffect ahora maneja el objeto completo
+    LaunchedEffect(searchResult) {
+        searchResult?.let { selectedUser ->
+            currentSelectedUser = selectedUser
+            navController.currentBackStackEntry?.savedStateHandle?.remove<TrackerUserResponse>("selected_user")
         }
     }
-
 
     Column(
         modifier = modifier
@@ -34,47 +50,52 @@ fun ConfigScreen(viewModel: LocationViewModel, onSave: () -> Unit, modifier: Mod
         verticalArrangement = Arrangement.Center
     ) {
         Text("Configuración de Usuario", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Selección de usuario
-        Box {
-            Button(onClick = { expanded = true }) {
-                // Muestra el nombre de usuario actual, o un mensaje si no hay seleccionados
-                Text(currentSelectedUserName.ifEmpty { "Selecciona un usuario" })
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
+        Text(
+            text = "Usuario seleccionado",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 4.dp)
+        )
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { navController.navigate("user_search") },
+            shape = MaterialTheme.shapes.medium,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Usa la lista de usuarios obtenida del ViewModel
-                if (trackerUsers.isEmpty()) {
-                    // Muestra un mensaje si no hay usuarios cargados aún
-                    DropdownMenuItem(
-                        text = { Text("Cargando usuarios...") },
-                        onClick = {} // Deshabilita la interacción
-                    )
-                } else {
-                    trackerUsers.forEach { user ->
-                        DropdownMenuItem(
-                            text = { Text(user) }, // Aquí 'user' es directamente el String del nombre
-                            onClick = {
-                                currentSelectedUserName = user // Actualiza el estado local con el nombre del usuario
-                                expanded = false
-                            }
-                        )
-                    }
-                }
+                // 4. Mostramos la propiedad 'name' del objeto
+                Text(
+                    text = currentSelectedUser?.name ?: "Toca para seleccionar",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "Seleccionar usuario"
+                )
             }
         }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
-                viewModel.setUserName(currentSelectedUserName) // Llama al ViewModel para guardar el nombre de usuario
-                onSave() // Navega o realiza la acción de guardar completada
+                // 5. Llamamos a la nueva función del ViewModel, pasando el objeto completo
+                currentSelectedUser?.let { user ->
+                    viewModel.setSelectedUser(user)
+                    onSave()
+                }
             },
-            // Habilita el botón solo si se ha seleccionado un usuario (currentSelectedUserName no está vacío)
-            enabled = currentSelectedUserName.isNotEmpty() && currentSelectedUserName != "Selecciona un usuario"
+            // El botón se activa si hemos seleccionado un usuario
+            enabled = currentSelectedUser != null
         ) {
             Text("Guardar Configuración")
         }
