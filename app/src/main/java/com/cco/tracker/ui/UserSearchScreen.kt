@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.cco.tracker.data.model.TrackerUserResponse
 import com.cco.tracker.ui.viewmodel.LocationViewModel
 
 @Composable
