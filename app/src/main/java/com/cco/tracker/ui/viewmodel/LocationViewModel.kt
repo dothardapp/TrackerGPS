@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cco.tracker.data.model.TrackerUserResponse
 import com.cco.tracker.data.repository.LocationRepository
-import com.cco.tracker.domain.LocationUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +18,6 @@ val Context.dataStore by preferencesDataStore(name = "user_preferences")
 
 class LocationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocationRepository(application.applicationContext)
-    private val useCase = LocationUseCase(repository)
     private val tag = "LocationViewModel"
 
     private val _isReady = MutableStateFlow(false)
@@ -30,8 +28,6 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
 
     private val _currentUser = MutableStateFlow<TrackerUserResponse?>(null)
     val currentUser: StateFlow<TrackerUserResponse?> = _currentUser.asStateFlow()
-
-    private val _locationState = MutableStateFlow<LocationState>(LocationState.Idle)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -62,10 +58,3 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
 
 }
 
-// La clase sellada LocationState no necesita cambios.
-sealed class LocationState {
-    object Idle : LocationState()
-    object Loading : LocationState()
-    object Success : LocationState()
-    data class Error(val message: String) : LocationState()
-}
