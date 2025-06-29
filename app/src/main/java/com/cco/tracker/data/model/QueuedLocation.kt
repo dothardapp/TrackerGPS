@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 data class QueuedLocation(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val tracker_user_id: Long,
-    val device_id: String,
+    val trackerUserId: Long,
+    val deviceId: String,
     val latitude: Double,
     val longitude: Double,
     val timestamp: String,

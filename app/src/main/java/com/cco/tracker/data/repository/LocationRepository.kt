@@ -47,8 +47,8 @@ class LocationRepository(private val context: Context) {
     fun buildLocationData(location: Location, userId: Long): LocationData {
         val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(Date(location.time))
         return LocationData(
-            tracker_user_id = userId,
-            device_id = deviceId,
+            trackerUserId = userId,
+            deviceId = deviceId,
             latitude = location.latitude,
             longitude = location.longitude,
             timestamp = timestamp,
@@ -61,8 +61,8 @@ class LocationRepository(private val context: Context) {
 
     suspend fun queueLocation(locationData: LocationData) {
         val queuedLocation = QueuedLocation(
-            tracker_user_id = locationData.tracker_user_id,
-            device_id = locationData.device_id,
+            trackerUserId = locationData.trackerUserId,
+            deviceId = locationData.deviceId,
             latitude = locationData.latitude,
             longitude = locationData.longitude,
             timestamp = locationData.timestamp,

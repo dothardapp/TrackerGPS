@@ -151,8 +151,8 @@ class LocationService : Service() {
             DebugLog.addLog("Enviando ${queuedLocations.size} puntos pendientes...")
             for (queuedLocation in queuedLocations) {
                 val locationData = LocationData(
-                    tracker_user_id = queuedLocation.tracker_user_id,
-                    device_id = queuedLocation.device_id,
+                    trackerUserId = queuedLocation.trackerUserId,
+                    deviceId = queuedLocation.deviceId,
                     latitude = queuedLocation.latitude,
                     longitude = queuedLocation.longitude,
                     timestamp = queuedLocation.timestamp,
