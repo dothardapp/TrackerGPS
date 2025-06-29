@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.location.Location
 
 val Context.dataStore by preferencesDataStore(name = "user_preferences")
 
@@ -62,24 +63,18 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
     }
 
     // --- CAMBIO AQUÍ: La lógica ahora maneja un Boolean ---
-    fun getAndSendLocation() {
-        Log.d(tag, "Iniciando getAndSendLocation...")
+    fun getAndSendLocation(location: Location) {
+        Log.d(tag, "Iniciando getAndSendLocation desde ViewModel...")
         viewModelScope.launch(Dispatchers.IO) {
             _locationState.value = LocationState.Loading
             try {
-                // 'success' ahora es true o false.
-                val success = useCase.getAndSendLocation()
+                val success = useCase.getAndSendLocation(location)
                 _locationState.value = if (success) {
-                    Log.d(tag, "Ubicación enviada con éxito desde el ViewModel")
                     LocationState.Success
                 } else {
-                    // El error específico ya se logueó en el Repository
-                    Log.w(tag, "Fallo en el envío gestionado por el UseCase.")
                     LocationState.Error("No se pudo enviar la ubicación.")
                 }
             } catch (e: Exception) {
-                // Capturamos las excepciones que lanza el UseCase (ej. si no hay usuario o GPS)
-                Log.e(tag, "Excepción capturada por el ViewModel: ${e.message}")
                 _locationState.value = LocationState.Error("Error: ${e.message}")
             }
         }

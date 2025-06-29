@@ -7,45 +7,48 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cco.tracker.service.LocationService
 import com.cco.tracker.ui.viewmodel.LocationViewModel
 import com.cco.tracker.util.DebugLog
 import com.cco.tracker.util.PermissionsUtil
+import com.cco.tracker.util.TrackingStateHolder // <-- Importa el nuevo Holder
 
 @Composable
 fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    var isTracking by remember { mutableStateOf(false) } // Este estado debería ser más robusto en producción
+
+    // --- CAMBIO CLAVE: Observamos el estado global en lugar de usar uno local ---
+    val isTracking by TrackingStateHolder.isTracking.collectAsStateWithLifecycle()
+
     val debugLogs by DebugLog.logMessages.collectAsStateWithLifecycle()
 
-    // --- NUEVA LÓGICA DE PERMISOS EN DOS PASOS ---
-
-    // Launcher para el permiso de segundo plano (BACKGROUND)
     val backgroundLocationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             DebugLog.addLog("Permiso de segundo plano CONCEDIDO.")
             startTrackingService(context)
-            isTracking = true
         } else {
             DebugLog.addLog("ERROR: Permiso de segundo plano DENEGADO.")
-            // Aquí podrías mostrar un diálogo explicando por qué es necesario
         }
     }
 
-    // Launcher para los permisos de primer plano (FINE/COARSE)
     val foregroundLocationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -54,19 +57,11 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
 
         if (isFineGranted || isCoarseGranted) {
             DebugLog.addLog("Permisos de primer plano CONCEDIDOS.")
-            // Una vez concedido el primer plano, si es Android 10+ pedimos el de segundo plano
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    startTrackingService(context)
-                    isTracking = true
-                } else {
-                    DebugLog.addLog("Pidiendo permiso de segundo plano...")
-                    backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                }
-            } else {
-                // En versiones antiguas de Android, con el primer permiso es suficiente
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 startTrackingService(context)
-                isTracking = true
+            } else {
+                DebugLog.addLog("Pidiendo permiso de segundo plano...")
+                backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             }
         } else {
             DebugLog.addLog("ERROR: Permisos de primer plano DENEGADOS.")
@@ -77,7 +72,6 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ... (el panel de control superior se mantiene igual)
         Column(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -90,19 +84,13 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = {
-                    // --- LÓGICA DE INICIO CON NUEVO FLUJO DE PERMISOS ---
                     if (PermissionsUtil.hasLocationPermissions(context)) {
-                        // Ya tenemos permiso de primer plano, comprobamos el de segundo plano
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                            DebugLog.addLog("Ya tiene permiso FG, pidiendo BG...")
+                        if (true && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                             backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                         } else {
                             startTrackingService(context)
-                            isTracking = true
                         }
                     } else {
-                        // No tenemos ningún permiso, iniciamos la petición desde cero
-                        DebugLog.addLog("Pidiendo permisos de primer plano...")
                         foregroundLocationPermissionLauncher.launch(
                             arrayOf(
                                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -116,7 +104,6 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
 
                 Button(
                     onClick = {
-                        isTracking = false
                         context.stopService(Intent(context, LocationService::class.java))
                     },
                     enabled = isTracking,
@@ -129,18 +116,28 @@ fun LocationScreen(viewModel: LocationViewModel, modifier: Modifier = Modifier) 
 
         HorizontalDivider()
 
-        // El panel de logs se mantiene igual...
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(8.dp),
+            reverseLayout = true
+        ) {
+            items(debugLogs) { logMsg ->
+                Text(
+                    text = logMsg,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
     }
 }
 
-// Función de ayuda para no repetir código
 private fun startTrackingService(context: Context) {
     DebugLog.addLog("Iniciando el servicio de seguimiento...")
     Intent(context, LocationService::class.java).also {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(it)
-        } else {
-            context.startService(it)
-        }
+        context.startForegroundService(it)
     }
 }

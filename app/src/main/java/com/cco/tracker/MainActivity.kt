@@ -35,6 +35,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cco.tracker.ui.ConfigScreen
 import com.cco.tracker.ui.LocationScreen
+import com.cco.tracker.ui.SettingsScreen
 import com.cco.tracker.ui.UserSearchScreen
 import com.cco.tracker.ui.theme.TrackerGPSTheme
 import com.cco.tracker.ui.viewmodel.LocationViewModel
@@ -84,6 +85,15 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("config") { launchSingleTop = true }
                                 }
                             )
+                            // --- AÑADIMOS EL NUEVO ITEM DE MENÚ ---
+                            NavigationDrawerItem(
+                                label = { Text("Ajustes") },
+                                selected = currentRoute == "settings",
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    navController.navigate("settings") { launchSingleTop = true }
+                                }
+                            )
                         }
                     }
                 ) {
@@ -95,6 +105,7 @@ class MainActivity : ComponentActivity() {
                                         "location" -> "Localización"
                                         "config" -> "Configuración"
                                         "user_search" -> "Buscar Usuario"
+                                        "settings" -> "Ajustes" // <-- TÍTULO PARA LA BARRA
                                         else -> "Tracker GPS"
                                     }
                                     Text(text = title)
@@ -108,7 +119,6 @@ class MainActivity : ComponentActivity() {
                         }
                     ) { innerPadding ->
                         val isReady by locationViewModel.isReady.collectAsStateWithLifecycle()
-                        // --- CAMBIO AQUÍ ---
                         val savedUser by locationViewModel.currentUser.collectAsStateWithLifecycle()
 
                         if (!isReady) {
@@ -119,7 +129,6 @@ class MainActivity : ComponentActivity() {
                                 CircularProgressIndicator()
                             }
                         } else {
-                            // --- Y CAMBIO AQUÍ ---
                             val startDestination = if (savedUser != null) "location" else "config"
                             NavHost(
                                 navController = navController,
@@ -145,6 +154,10 @@ class MainActivity : ComponentActivity() {
                                         viewModel = locationViewModel,
                                         navController = navController
                                     )
+                                }
+                                // --- AÑADIMOS LA NUEVA RUTA ---
+                                composable("settings") {
+                                    SettingsScreen(viewModelFactory = viewModelFactory)
                                 }
                             }
                         }

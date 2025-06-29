@@ -11,5 +11,9 @@ data class QueuedLocation(
     val device_id: String,
     val latitude: Double,
     val longitude: Double,
-    val timestamp: String
+    val timestamp: String,
+    val speed: Float?,
+    val bearing: Float?,
+    val altitude: Double?,
+    val accuracy: Float?
 )

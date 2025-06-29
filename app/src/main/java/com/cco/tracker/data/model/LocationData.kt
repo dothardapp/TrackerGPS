@@ -7,5 +7,9 @@ data class LocationData(
     @SerializedName("device_id") val device_id: String,
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
-    @SerializedName("timestamp") val timestamp: String
+    @SerializedName("timestamp") val timestamp: String,
+    @SerializedName("speed") val speed: Float?,
+    @SerializedName("bearing") val bearing: Float?,
+    @SerializedName("altitude") val altitude: Double?,
+    @SerializedName("accuracy") val accuracy: Float?
 )

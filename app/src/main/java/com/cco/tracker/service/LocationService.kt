@@ -1,38 +1,40 @@
 package com.cco.tracker.service
 
-import android.Manifest // <-- Import necesario
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager // <-- Import necesario
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat // <-- Import necesario
+import androidx.core.content.ContextCompat
 import com.cco.tracker.R
 import com.cco.tracker.data.model.LocationData
 import com.cco.tracker.data.repository.LocationRepository
+import com.cco.tracker.domain.LocationUseCase
 import com.cco.tracker.util.DebugLog
+import com.cco.tracker.util.TrackingStateHolder
 import com.google.android.gms.location.*
 import kotlinx.coroutines.*
 
 class LocationService : Service() {
-    // ... (las variables se mantienen igual)
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var repository: LocationRepository
+    private lateinit var useCase: LocationUseCase
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-
 
     override fun onCreate() {
         super.onCreate()
         DebugLog.addLog("LocationService: onCreate")
+        // La inicialización de componentes se mantiene aquí, es rápido.
         repository = LocationRepository(applicationContext)
+        useCase = LocationUseCase(repository)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         setupLocationCallback()
         setupNetworkCallback()
@@ -40,64 +42,101 @@ class LocationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         DebugLog.addLog("LocationService: onStartCommand")
+
+        // --- ESTA ES LA CORRECCIÓN CLAVE ---
+        // 1. Llamamos a startForeground() INMEDIATAMENTE al iniciar el comando.
         startForegroundService()
+
+        // 2. Informamos al resto de la app que estamos activos.
+        TrackingStateHolder.setTrackingState(true)
+
+        // 3. Ahora que el sistema está satisfecho, iniciamos el resto de las operaciones.
         startLocationUpdates()
         syncQueuedLocations()
+
         return START_STICKY
     }
 
-    // --- setupLocationCallback() y los métodos de sincronización se mantienen igual ---
-    // ...
+    private fun startForegroundService() {
+        val channelId = "location_service_channel"
+        val channelName = "Location Service"
+        val notificationManager = getSystemService(NotificationManager::class.java)
 
-    private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY, 30000
-        ).apply {
-            setMinUpdateIntervalMillis(15000)
-            setMinUpdateDistanceMeters(10f)
-        }.build()
+        // Es seguro llamar a createNotificationChannel varias veces.
+        val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
+        notificationManager.createNotificationChannel(channel)
 
-        // --- ESTA ES LA CORRECCIÓN CLAVE ---
-        // Comprobamos el permiso OTRA VEZ aquí dentro, antes de la llamada "peligrosa".
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            try {
-                fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-                DebugLog.addLog("Petición de actualizaciones de ubicación iniciada.")
-            } catch (e: SecurityException) {
-                // Este error ya no debería ocurrir, pero lo dejamos por seguridad.
-                DebugLog.addLog("ERROR INESPERADO: SecurityException a pesar de tener permisos.")
-                stopSelf()
-            }
-        } else {
-            // Esto solo ocurriría si el servicio se inicia de alguna forma sin permisos.
-            DebugLog.addLog("ERROR: El servicio arrancó sin permisos de ubicación.")
-            stopSelf()
-        }
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Tracker GPS Activo")
+            .setContentText("Tu ubicación está siendo monitoreada.")
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // Asegúrate de tener este icono
+            .build()
+
+        // Esta es la llamada que el sistema operativo espera recibir rápidamente.
+        startForeground(1, notification)
+        DebugLog.addLog("Servicio puesto en primer plano.")
     }
 
-    // ... (el resto del servicio: sync, network callback, foreground, onDestroy, onBind) se mantiene igual
-    // ...
+    // El resto del archivo no necesita cambios...
     private fun setupLocationCallback() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 val location = locationResult.lastLocation ?: return
+
+                // Si la precisión es mayor a 50 metros, consideramos que es un punto de mala calidad y lo ignoramos.
+                // Puedes ajustar este valor según tus pruebas.
+                if (location.hasAccuracy() && location.accuracy > 40.0f) {
+                    DebugLog.addLog("Punto descartado: baja precisión (${location.accuracy}m)")
+                    return
+                }
+
                 val locText = "Lat: ${location.latitude}, Lon: ${location.longitude}"
                 DebugLog.addLog("Nueva ubicación detectada: $locText")
 
                 serviceScope.launch {
-                    val user = repository.getSavedUser() ?: return@launch
-                    val locationData = repository.getCurrentLocationData(user.id) ?: return@launch
-
-                    DebugLog.addLog("Intentando enviar al servidor...")
-                    val success = repository.sendLocation(locationData)
-                    if (success) {
-                        DebugLog.addLog("-> Envío exitoso.")
-                    } else {
-                        DebugLog.addLog("-> Fallo de red. Guardando en cola.")
-                        repository.queueLocation(locationData)
+                    try {
+                        val success = useCase.getAndSendLocation(location)
+                        if (success) {
+                            DebugLog.addLog("-> Envío exitoso.")
+                        } else {
+                            DebugLog.addLog("-> Fallo de red. Guardando en cola.")
+                            repository.getSavedUser()?.let { user ->
+                                val locationData = repository.buildLocationData(location, user.id)
+                                repository.queueLocation(locationData)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        DebugLog.addLog("ERROR en el proceso de envío: ${e.message}")
                     }
                 }
             }
+        }
+    }
+
+    // Hacemos que esta función sea 'suspend' para poder llamar al repositorio
+    private fun startLocationUpdates() = serviceScope.launch {
+        // --- LEEMOS LOS AJUSTES GUARDADOS ---
+        val (intervalSeconds, distanceMeters) = repository.getTrackingSettings()
+        DebugLog.addLog("Iniciando updates con: ${intervalSeconds}s / ${distanceMeters}m")
+
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY, intervalSeconds * 1000 // Convertimos a milisegundos
+        ).apply {
+            setMinUpdateIntervalMillis((intervalSeconds * 1000) / 2) // La mitad del intervalo
+            setMinUpdateDistanceMeters(distanceMeters.toFloat())
+        }.build()
+
+        if (ContextCompat.checkSelfPermission(this@LocationService, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+                DebugLog.addLog("Petición de actualizaciones de ubicación iniciada.")
+            } catch (e: SecurityException) {
+                DebugLog.addLog("ERROR INESPERADO: SecurityException a pesar de tener permisos.")
+                stopSelf()
+            }
+        } else {
+            DebugLog.addLog("ERROR: El servicio arrancó sin permisos de ubicación.")
+            stopSelf()
         }
     }
 
@@ -117,7 +156,11 @@ class LocationService : Service() {
                     device_id = queuedLocation.device_id,
                     latitude = queuedLocation.latitude,
                     longitude = queuedLocation.longitude,
-                    timestamp = queuedLocation.timestamp
+                    timestamp = queuedLocation.timestamp,
+                    speed = queuedLocation.speed,
+                    bearing = queuedLocation.bearing,
+                    altitude = queuedLocation.altitude,
+                    accuracy = queuedLocation.accuracy
                 )
                 val success = repository.sendLocation(locationData)
                 if (success) {
@@ -142,28 +185,11 @@ class LocationService : Service() {
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
     }
 
-    private fun startForegroundService() {
-        val channelId = "location_service_channel"
-        val channelName = "Location Service"
-        val notificationManager = getSystemService(NotificationManager::class.java)
-
-        val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
-        notificationManager.createNotificationChannel(channel)
-
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Tracker GPS Activo")
-            .setContentText("Tu ubicación está siendo monitoreada.")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .build()
-
-        startForeground(1, notification)
-        DebugLog.addLog("Servicio puesto en primer plano.")
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         fusedLocationClient.removeLocationUpdates(locationCallback)
         serviceScope.cancel()
+        TrackingStateHolder.setTrackingState(false)
         DebugLog.addLog("LocationService: onDestroy")
     }
 

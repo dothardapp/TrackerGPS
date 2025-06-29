@@ -6,7 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.cco.tracker.data.model.QueuedLocation
 
-@Database(entities = [QueuedLocation::class], version = 1)
+// 1. Incrementamos la versión de la base de datos a 2
+@Database(entities = [QueuedLocation::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun queuedLocationDao(): QueuedLocationDao
 
@@ -20,7 +21,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "tracker_database"
-                ).build()
+                )
+                    // 2. Añadimos esta línea para manejar la migración automáticamente
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
