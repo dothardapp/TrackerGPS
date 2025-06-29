@@ -130,7 +130,7 @@ class LocationService : Service() {
             try {
                 fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
                 DebugLog.addLog("Petición de actualizaciones de ubicación iniciada.")
-            } catch (e: SecurityException) {
+            } catch (_: SecurityException) {
                 DebugLog.addLog("ERROR INESPERADO: SecurityException a pesar de tener permisos.")
                 stopSelf()
             }
@@ -175,7 +175,7 @@ class LocationService : Service() {
     }
 
     private fun setupNetworkCallback() {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 DebugLog.addLog("Conexión a internet recuperada.")

@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import android.location.Location
 
 val Context.dataStore by preferencesDataStore(name = "user_preferences")
 
@@ -33,7 +32,6 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
     val currentUser: StateFlow<TrackerUserResponse?> = _currentUser.asStateFlow()
 
     private val _locationState = MutableStateFlow<LocationState>(LocationState.Idle)
-    val locationState: StateFlow<LocationState> = _locationState.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -62,23 +60,6 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- CAMBIO AQUÍ: La lógica ahora maneja un Boolean ---
-    fun getAndSendLocation(location: Location) {
-        Log.d(tag, "Iniciando getAndSendLocation desde ViewModel...")
-        viewModelScope.launch(Dispatchers.IO) {
-            _locationState.value = LocationState.Loading
-            try {
-                val success = useCase.getAndSendLocation(location)
-                _locationState.value = if (success) {
-                    LocationState.Success
-                } else {
-                    LocationState.Error("No se pudo enviar la ubicación.")
-                }
-            } catch (e: Exception) {
-                _locationState.value = LocationState.Error("Error: ${e.message}")
-            }
-        }
-    }
 }
 
 // La clase sellada LocationState no necesita cambios.

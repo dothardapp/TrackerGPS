@@ -23,7 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "tracker_database"
                 )
                     // 2. Añadimos esta línea para manejar la migración automáticamente
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(false)
                     .build()
                 INSTANCE = instance
                 instance

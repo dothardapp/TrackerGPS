@@ -13,8 +13,6 @@ import com.cco.tracker.data.model.QueuedLocation
 import com.cco.tracker.data.model.TrackerUserResponse
 import com.cco.tracker.data.network.RetrofitClient
 import com.cco.tracker.ui.viewmodel.dataStore
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -25,7 +23,6 @@ import java.util.Locale
 import java.util.UUID
 
 class LocationRepository(private val context: Context) {
-    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
     private val apiService = RetrofitClient.apiService
     private val tag = "LocationRepository"
     private val queuedLocationDao = AppDatabase.getDatabase(context).queuedLocationDao()
@@ -85,7 +82,7 @@ class LocationRepository(private val context: Context) {
         try {
             val response = apiService.getUsers()
             if (response.isSuccessful) { response.body() ?: emptyList() } else { emptyList() }
-        } catch (e: Exception) { emptyList() }
+        } catch (_: Exception) { emptyList() }
     }
     suspend fun saveSelectedUser(user: TrackerUserResponse) = withContext(Dispatchers.IO) {
         context.dataStore.edit { preferences ->
